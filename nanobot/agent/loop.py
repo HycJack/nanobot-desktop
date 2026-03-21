@@ -367,6 +367,13 @@ class AgentLoop:
         Returns:
             The agent's response.
         """
+        if ":" in session_key:
+            parsed_channel, parsed_chat_id = session_key.split(":", 1)
+            channel = parsed_channel
+            chat_id = parsed_chat_id
+        else:
+            chat_id = session_key
+
         msg = InboundMessage(
             channel=channel,
             sender_id="user",
