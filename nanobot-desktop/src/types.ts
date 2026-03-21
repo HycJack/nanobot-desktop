@@ -33,8 +33,8 @@ export type LogState = {
 };
 
 export type Status = {
-  agent: boolean;
-  gateway: boolean;
+  agent: string | boolean;
+  gateway: string | boolean;
   router?: boolean;
   subagents?: boolean;
 };

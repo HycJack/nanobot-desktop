@@ -49,12 +49,38 @@ const ChatMessageItem = memo(({
   isCollapsed, 
   toggleCollapse, 
   subagentStatuses, 
-  onCancelSubagent 
-}: Props) => {
+  onCancelSubagent,
+  onOpenSidePanel
+}: Props & { onOpenSidePanel?: (content: string) => void }) => {
   const parsed = useMemo(
     () => msg.role === "bot" ? splitDebugContent(msg.content) : null,
     [msg.content, msg.role]
   );
+
+  // Round 11: Optimized Detection - Better heuristics and performance
+  const executionListData = useMemo(() => {
+    if (msg.role !== "bot" || !msg.content) return null;
+    const content = msg.content;
+    
+    // Check for specific markers: Task/Plan/Execution sections
+    // Optimized: use .test() instead of .match() for boolean check
+    const hasExecutionMarker = /^#+\s+(?:Task|Implementation Plan|执行清单|任务清单|方案|Workflow)/im.test(content);
+    
+    if (hasExecutionMarker) {
+      // Extract summary: look for the first H1/H2 starting with Task/Plan
+      const headerMatch = content.match(/^#+\s+(?:Task|Implementation Plan|执行清单|任务清单|方案|Workflow)\s*(.*)/im);
+      const summary = headerMatch ? headerMatch[1].trim() || headerMatch[0].replace(/^#+\s+/, "").trim() : "Execution Details";
+      return { summary, content };
+    }
+
+    // Secondary check: dense checkbox lists (3+ items)
+    const checkboxes = content.match(/^[ \t]*[-*+]\s+\[[ x/]\]/gm);
+    if (checkboxes && checkboxes.length >= 3) {
+      return { summary: "Checklist / Task Items", content };
+    }
+
+    return null;
+  }, [msg.content, msg.role]);
 
   const handleCopy = React.useCallback(() => {
     navigator.clipboard.writeText(msg.content).catch(() => {
@@ -102,10 +128,23 @@ const ChatMessageItem = memo(({
                     ))}
                   </div>
                 )}
-                {parsed ? (
+                {/* Round 6: Execution Trigger Logic */}
+                {executionListData ? (
+                  <div 
+                    className="execution-trigger" 
+                    onClick={() => onOpenSidePanel?.(msg.id)}
+                  >
+                    <div className="trigger-status-icon">
+                      <CheckCircle2 size={16} />
+                    </div>
+                    <span className="trigger-label-text">执行清单：{executionListData.summary}</span>
+                    <span className="view-btn-pill">查看</span>
+                  </div>
+                ) : parsed ? (
                   <>
                     {parsed.main ? (
                       <div className="markdown-body">
+... (rest of message rendering)
                         <ReactMarkdown 
                           remarkPlugins={[remarkGfm]}
                           components={{

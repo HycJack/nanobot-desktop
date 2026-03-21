@@ -15,6 +15,7 @@ import { now, MAX_INPUT_LINES } from "./utils/helpers";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Sidebar from "./components/Sidebar";
 import ChatMessageItem from "./components/ChatMessageItem";
+import SidePanel from "./components/SidePanel";
 import ToastContainer from "./components/ToastContainer";
 import { AttachmentBar } from "./components/AttachmentBar";
 import { ModelDropdown } from "./components/ModelDropdown";
@@ -185,6 +186,15 @@ export default function App() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const chat = useChat(sessions);
+  const {
+    isSidePanelOpen, setIsSidePanelOpen,
+    sidePanelMessageId, toggleSidePanel
+  } = chat;
+
+  const sidePanelContent = useMemo(() => {
+    if (!sidePanelMessageId) return null;
+    return chat.messages.find(m => m.id === sidePanelMessageId)?.content || null;
+  }, [chat.messages, sidePanelMessageId]);
   const proc = useProcesses();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -303,6 +313,21 @@ export default function App() {
     el.style.height = `${nextHeight}px`;
     el.style.overflowY = el.scrollHeight > maxHeight ? "auto" : "hidden";
   }, [chat.input]);
+
+  /* Health Alerts - round 12 optimization */
+  const lastStatus = useRef({ agent: "", gateway: "" });
+  useEffect(() => {
+    if (proc.status.agent === "Crashed" && lastStatus.current.agent !== "Crashed") {
+      toast.error("Agent crashed! Watchdog will attempt restart.");
+    }
+    if (proc.status.gateway === "Crashed" && lastStatus.current.gateway !== "Crashed") {
+      toast.error("Gateway crashed! Watchdog will attempt restart.");
+    }
+    lastStatus.current = { 
+      agent: String(proc.status.agent), 
+      gateway: String(proc.status.gateway) 
+    };
+  }, [proc.status.agent, proc.status.gateway, toast]);
 
   /* Load history when switching to chat tab */
   useEffect(() => {
@@ -459,28 +484,30 @@ export default function App() {
             <div className="tab-panel-container" key={tab}>
               <Suspense fallback={<PanelFallback />}>
                 {tab === "chat" ? (
-                  <div className="content">
-                    <div className="chat-list" ref={chat.chatListRef} onScroll={chat.handleHistoryScroll} aria-live="polite" aria-atomic="false">
-                      {chat.messages.length === 0 && (
-                        <div className="empty-state">
-                          <div className="empty-state-icon">
-                            <MessageSquare size={48} strokeWidth={1} />
+                  <div className={`content ${isSidePanelOpen ? 'split' : ''}`}>
+                    <div className="chat-section" style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                      <div className="chat-list" ref={chat.chatListRef} onScroll={chat.handleHistoryScroll} aria-live="polite" aria-atomic="false">
+                        {chat.messages.length === 0 && (
+                          <div className="empty-state">
+                            <div className="empty-state-icon">
+                              <MessageSquare size={48} strokeWidth={1} />
+                            </div>
+                            <div className="empty-state-text">Start your journey</div>
+                            <div className="empty-state-hint">Press Enter to send, Shift+Enter for new line</div>
                           </div>
-                          <div className="empty-state-text">Start your journey</div>
-                          <div className="empty-state-hint">Press Enter to send, Shift+Enter for new line</div>
-                        </div>
-                      )}
-                      {chat.messages.map((msg: Message) => (
-                        <ChatMessageItem
-                          key={msg.id}
-                          msg={msg}
-                          chatFontSize={chat.chatFontSize}
-                          isCollapsed={chat.collapsedMsgIds.has(msg.id)}
-                          toggleCollapse={chat.toggleCollapse}
-                          subagentStatuses={chat.subagentStatuses}
-                          onCancelSubagent={chat.cancelSubagent}
-                        />
-                      ))}
+                        )}
+                        {chat.messages.map((msg: Message) => (
+                          <ChatMessageItem
+                            key={msg.id}
+                            msg={msg}
+                            chatFontSize={chat.chatFontSize}
+                            isCollapsed={chat.collapsedMsgIds.has(msg.id)}
+                            toggleCollapse={chat.toggleCollapse}
+                            subagentStatuses={chat.subagentStatuses}
+                            onCancelSubagent={chat.cancelSubagent}
+                            onOpenSidePanel={toggleSidePanel}
+                          />
+                        ))}
                       {chat.sending && (
                         <div className="message-row bot" aria-busy="true" aria-label="Bot is typing">
                           <div className="bubble-wrapper">
@@ -571,7 +598,20 @@ export default function App() {
                       </div>
                     </div>
                   </div>
-                ) : tab === "monitor" ? (
+                  {isSidePanelOpen && (
+                    <SidePanel 
+                      content={sidePanelContent} 
+                      isOpen={isSidePanelOpen} 
+                      onClose={() => setIsSidePanelOpen(false)} 
+                      width={chat.sidePanelWidth}
+                      onResize={chat.setSidePanelWidth}
+                      messages={chat.messages}
+                      currentMessageId={chat.sidePanelMessageId}
+                      onSelectMessage={chat.toggleSidePanel}
+                    />
+                  )}
+                </div>
+              ) : tab === "monitor" ? (
                   <MonitorPanel 
                     proc={proc} 
                     subagentStatuses={chat.subagentStatuses} 

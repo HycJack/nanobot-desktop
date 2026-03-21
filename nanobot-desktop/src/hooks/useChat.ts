@@ -32,6 +32,33 @@ export function useChat(sessions: SessionInfo[]) {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyEnd, setHistoryEnd] = useState(false);
   const [subagentStatuses, setSubagentStatuses] = useState<Record<string, AgentStatusEvent>>({});
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(() => {
+    return localStorage.getItem("nanobot_side_panel_open") === "true";
+  });
+  const [sidePanelMessageId, setSidePanelMessageId] = useState<string | null>(null);
+  const [sidePanelWidth, setSidePanelWidth] = useState(() => {
+    return parseInt(localStorage.getItem("nanobot_side_panel_width") || "480", 10);
+  });
+
+  // Round 26: Persistence
+  useEffect(() => {
+    localStorage.setItem("nanobot_side_panel_open", String(isSidePanelOpen));
+  }, [isSidePanelOpen]);
+
+  useEffect(() => {
+    localStorage.setItem("nanobot_side_panel_width", String(sidePanelWidth));
+  }, [sidePanelWidth]);
+
+  // Round 28: Keyboard Shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isSidePanelOpen) {
+        setIsSidePanelOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isSidePanelOpen]);
 
   const chatListRef = useRef<HTMLDivElement | null>(null);
   const autoScrollRef = useRef(true);
@@ -347,6 +374,15 @@ export function useChat(sessions: SessionInfo[]) {
     }
   }, []);
 
+  const toggleSidePanel = useCallback((messageId?: string) => {
+    if (messageId !== undefined) {
+      setSidePanelMessageId(messageId);
+      setIsSidePanelOpen(true);
+    } else {
+      setIsSidePanelOpen(prev => !prev);
+    }
+  }, []);
+
   return {
     messages, setMessages, input, setInput: handleInputChange, sending,
     currentSession, setCurrentSession: switchSession,
@@ -365,5 +401,9 @@ export function useChat(sessions: SessionInfo[]) {
     activeTrigger,
     subagentStatuses, cancelSubagent, cancelAllSubagents, stopGeneration,
     reloadSubagents,
+    isSidePanelOpen, setIsSidePanelOpen,
+    sidePanelMessageId, setSidePanelMessageId,
+    sidePanelWidth, setSidePanelWidth,
+    toggleSidePanel,
   };
 }

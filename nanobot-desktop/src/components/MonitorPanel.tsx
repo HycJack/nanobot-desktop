@@ -6,7 +6,7 @@ import type { AgentStatusEvent, ToolExecution } from "../types";
 
 type Props = {
   proc: {
-    status: { agent: boolean; gateway: boolean };
+    status: { agent: string | boolean; gateway: string | boolean };
     procBusy: { agent: boolean; gateway: boolean };
     logs: { agent: { stream: string; line: string }[]; gateway: { stream: string; line: string }[] };
     toggleProc: (kind: "agent" | "gateway") => void;
@@ -139,30 +139,32 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
         <div className="card">
           <div className="card-row">
             <div className="status-header">
-              <Activity size={18} className="icon-blue" />
+              <Activity size={18} className={proc.status.agent === "Running" ? "icon-blue" : (proc.status.agent === "Crashed" ? "icon-red" : "icon-gray")} />
               <h3>Agent</h3>
+              <span className={`status-pill ${String(proc.status.agent).toLowerCase()}`}>{String(proc.status.agent)}</span>
             </div>
             <button
-              className={proc.status.agent ? "stop" : ""}
+              className={proc.status.agent === "Running" ? "stop" : ""}
               onClick={() => proc.toggleProc("agent")}
               disabled={proc.procBusy.agent}
             >
-              {proc.status.agent ? "Stop" : "Start"}
+              {proc.status.agent === "Running" ? "Stop" : "Start"}
             </button>
           </div>
         </div>
         <div className="card">
           <div className="card-row">
             <div className="status-header">
-              <Activity size={18} className="icon-green" />
+              <Activity size={18} className={proc.status.gateway === "Running" ? "icon-green" : (proc.status.gateway === "Crashed" ? "icon-red" : "icon-gray")} />
               <h3>Gateway</h3>
+              <span className={`status-pill ${String(proc.status.gateway).toLowerCase()}`}>{String(proc.status.gateway)}</span>
             </div>
             <button
-              className={proc.status.gateway ? "stop" : ""}
+              className={proc.status.gateway === "Running" ? "stop" : ""}
               onClick={() => proc.toggleProc("gateway")}
               disabled={proc.procBusy.gateway}
             >
-              {proc.status.gateway ? "Stop" : "Start"}
+              {proc.status.gateway === "Running" ? "Stop" : "Start"}
             </button>
           </div>
         </div>

@@ -4,15 +4,17 @@ import asyncio
 from pathlib import Path
 from typing import Any, Callable, Coroutine
 
-from loguru import logger
+try:
+    from loguru import logger
+except ImportError:
+    import logging
+    logger = logging.getLogger("nanobot")
 
-# Default interval: 30 minutes
-DEFAULT_HEARTBEAT_INTERVAL_S = 30 * 60
+# Default interval: 5 minutes (reduced from 30)
+DEFAULT_HEARTBEAT_INTERVAL_S = 5 * 60
 
-# The prompt sent to agent during heartbeat
-HEARTBEAT_PROMPT = """Read HEARTBEAT.md in your workspace (if it exists).
-Follow any instructions or tasks listed there.
-If nothing needs attention, reply with just: HEARTBEAT_OK"""
+# The prompt sent to agent during heartbeat - simplified for token saving
+HEARTBEAT_PROMPT = "Check HEARTBEAT.md. If empty, reply: HEARTBEAT_OK"
 
 # Token that indicates "nothing to do"
 HEARTBEAT_OK_TOKEN = "HEARTBEAT_OK"
@@ -83,8 +85,9 @@ class HeartbeatService:
     def stop(self) -> None:
         """Stop the heartbeat service."""
         self._running = False
-        if self._task:
-            self._task.cancel()
+        task = self._task
+        if task is not None:
+            task.cancel()
             self._task = None
     
     async def _run_loop(self) -> None:
@@ -110,9 +113,10 @@ class HeartbeatService:
         
         logger.info("Heartbeat: checking for tasks...")
         
-        if self.on_heartbeat:
+        tick_func = self.on_heartbeat
+        if tick_func is not None:
             try:
-                response = await self.on_heartbeat(HEARTBEAT_PROMPT)
+                response = await tick_func(HEARTBEAT_PROMPT)
                 
                 # Check if agent said "nothing to do"
                 if HEARTBEAT_OK_TOKEN.replace("_", "") in response.upper().replace("_", ""):
@@ -125,6 +129,7 @@ class HeartbeatService:
     
     async def trigger_now(self) -> str | None:
         """Manually trigger a heartbeat."""
-        if self.on_heartbeat:
-            return await self.on_heartbeat(HEARTBEAT_PROMPT)
+        tick_func = self.on_heartbeat
+        if tick_func is not None:
+            return await tick_func(HEARTBEAT_PROMPT)
         return None

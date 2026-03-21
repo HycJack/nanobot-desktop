@@ -69,14 +69,14 @@ export default memo(function Sidebar({ tab, setTab, status, currentSession, onNe
       <div className="sidebar-footer">
         <div className="status-group">
           <div className="status-row">
-            <Activity size={14} className={status.agent ? "text-success" : "text-muted"} />
+            <Activity size={14} className={status.agent === "Running" ? "text-success" : (status.agent === "Crashed" ? "text-error" : "text-muted")} />
             <span className="status-label">Agent</span>
-            <span className={`status-dot agent ${status.agent ? "on" : "off"}`} />
+            <span className={`status-dot agent ${status.agent === "Running" ? "on" : (status.agent === "Crashed" ? "error" : "off")}`} />
           </div>
           <div className="status-row">
-            <Settings2 size={14} className={status.gateway ? "text-accent" : "text-muted"} />
+            <Settings2 size={14} className={status.gateway === "Running" ? "text-accent" : (status.gateway === "Crashed" ? "text-error" : "text-muted")} />
             <span className="status-label">Gateway</span>
-            <span className={`status-dot gateway ${status.gateway ? "on" : "off"}`} />
+            <span className={`status-dot gateway ${status.gateway === "Running" ? "on" : (status.gateway === "Crashed" ? "error" : "off")}`} />
           </div>
           <div className="status-row">
             <Router size={14} className={status.router ? "text-info" : "text-muted"} />

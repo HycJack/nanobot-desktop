@@ -41,6 +41,8 @@ pub struct ProcState {
     pub emit_logs: bool,
     pub subagent_registry: HashMap<String, SubagentInfo>,
     pub status_cache: Option<(StatusPayload, std::time::Instant)>,
+    pub restart_count: HashMap<String, u32>,
+    pub last_restart: HashMap<String, std::time::Instant>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -80,8 +82,8 @@ struct ProcessExitPayload {
 
 #[derive(Serialize, Clone)]
 pub struct StatusPayload {
-    pub agent: bool,
-    pub gateway: bool,
+    pub agent: String,
+    pub gateway: String,
 }
 
 #[derive(Serialize, Clone)]
@@ -508,7 +510,14 @@ fn validate_memory_name(name: &str) -> Result<(), String> {
     Err("invalid memory name".to_string())
 }
 
-pub(crate) fn emit_log(app: &AppHandle, kind: &str, line: String, stream: &str) {
+pub(crate) fn emit_log(app: &AppHandle, kind: &str, mut line: String, stream: &str) {
+    // Prevent IPC congestion by truncating extremely long lines
+    const MAX_IPC_LINE: usize = 10_000;
+    if line.len() > MAX_IPC_LINE {
+        line.truncate(MAX_IPC_LINE);
+        line.push_str("... [truncated]");
+    }
+
     let payload = LogPayload {
         kind: kind.to_string(),
         line,
@@ -904,7 +913,10 @@ fn get_status(state: State<Arc<Mutex<ProcState>>>) -> StatusPayload {
                  else if scan { is_matching_process_running("gateway") } 
                  else { false };
                  
-    let payload = StatusPayload { agent, gateway };
+    let payload = StatusPayload { 
+        agent: if agent { "Running".to_string() } else { "Offline".to_string() },
+        gateway: if gateway { "Running".to_string() } else { "Offline".to_string() },
+    };
     guard.status_cache = Some((payload.clone(), std::time::Instant::now()));
     payload
 }
@@ -1651,6 +1663,64 @@ fn main() {
 
             let handle = app.handle();
             let state = app.state::<Arc<Mutex<ProcState>>>().inner().clone();
+            let handle_clone = handle.clone();
+            let state_clone = state.clone();
+
+            // Watchdog Thread: Monitor and restart processes if they crash
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    
+                    let mut restart_agent = false;
+                    let mut restart_gateway = false;
+                    
+                    {
+                        if let Ok(mut s) = state_clone.lock() {
+                            // Check agent
+                            if s.agent.is_none() && is_matching_process_running("agent") == false {
+                                let count = s.restart_count.get("agent").cloned().unwrap_or(0);
+                                if count < 5 {
+                                    let now = std::time::Instant::now();
+                                    let last = s.last_restart.get("agent").cloned();
+                                    if last.map(|l| now.duration_since(l).as_secs() > 30).unwrap_or(true) {
+                                        restart_agent = true;
+                                        s.restart_count.insert("agent".to_string(), count + 1);
+                                        s.last_restart.insert("agent".to_string(), now);
+                                    }
+                                }
+                            } else {
+                                // Reset count if running successfully for a while
+                                s.restart_count.insert("agent".to_string(), 0);
+                            }
+
+                            // Check gateway
+                            if s.gateway.is_none() && is_matching_process_running("gateway") == false {
+                                let count = s.restart_count.get("gateway").cloned().unwrap_or(0);
+                                if count < 5 {
+                                    let now = std::time::Instant::now();
+                                    let last = s.last_restart.get("gateway").cloned();
+                                    if last.map(|l| now.duration_since(l).as_secs() > 30).unwrap_or(true) {
+                                        restart_gateway = true;
+                                        s.restart_count.insert("gateway".to_string(), count + 1);
+                                        s.last_restart.insert("gateway".to_string(), now);
+                                    }
+                                }
+                            } else {
+                                s.restart_count.insert("gateway".to_string(), 0);
+                            }
+                        }
+                    }
+
+                    if restart_agent {
+                        emit_log(&handle_clone, "agent", "Watchdog: Restarting agent...".to_string(), "stdout");
+                        let _ = start_process_inner("agent", &state_clone, &handle_clone);
+                    }
+                    if restart_gateway {
+                        emit_log(&handle_clone, "gateway", "Watchdog: Restarting gateway...".to_string(), "stdout");
+                        let _ = start_process_inner("gateway", &state_clone, &handle_clone);
+                    }
+                }
+            });
 
             if config_path().exists() {
                 let _ = start_process_inner("agent", &state, &handle);

@@ -4,7 +4,7 @@ import base64
 import mimetypes
 import platform
 from pathlib import Path
-from typing import Any
+from typing import Any, cast, List, Dict
 
 from nanobot.agent.memory import MemoryStore
 from nanobot.agent.skills import SkillsLoader
@@ -79,32 +79,21 @@ Skills with available="false" need dependencies installed first - you can try in
         runtime = f"{'macOS' if system == 'Darwin' else system} {platform.machine()}, Python {platform.python_version()}"
         
         return f"""# nanobot 🐈
+You are a helpful AI assistant.
+Time: {now} | Runtime: {runtime}
+Workspace: {workspace_path}
 
-You are nanobot, a helpful AI assistant. You have access to tools that allow you to:
-- Read, write, and edit files
-- Execute shell commands
-- Search the web and fetch web pages
-- Send messages to users on chat channels
-- Spawn subagents for complex background tasks
+## Capabilities
+- Files: Read/Write/Edit/List
+- System: Exec shell, Search web, Fetch URL
+- Chat: Outbound restricted to internal callbacks
+- Subagents: Spawn background tasks
+- Memory: Record facts to {workspace_path}/memory/MEMORY.md
 
-## Current Time
-{now}
+## Rules
+- Direct response: Use text only.
+- Conciseness: Be accurate and brief."""
 
-## Runtime
-{runtime}
-
-## Workspace
-Your workspace is at: {workspace_path}
-- Memory files: {workspace_path}/memory/MEMORY.md
-- Daily notes: {workspace_path}/memory/YYYY-MM-DD.md
-- Custom skills: {workspace_path}/skills/{{skill-name}}/SKILL.md
-
-IMPORTANT: When responding to direct questions or conversations, reply directly with your text response.
-Only use the 'message' tool when you need to send a message to a specific chat channel (like WhatsApp).
-For normal conversation, just respond with text - do not call the message tool.
-
-Always be helpful, accurate, and concise. When using tools, explain what you're doing.
-When remembering something, write to {workspace_path}/memory/MEMORY.md"""
     
     def _load_bootstrap_files(self) -> str:
         """Load all bootstrap files from workspace."""
@@ -118,6 +107,23 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         
         return "\n\n".join(parts) if parts else ""
     
+    def _estimate_tokens(self, messages: list[dict[str, Any]]) -> int:
+        """Estimate token count (approx 4 chars per token)."""
+        total: int = 0
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                total = total + (len(content) // 4 + 1)
+            elif isinstance(content, list):
+                for part in content:
+                    p = cast(dict[str, Any], part)
+                    if p.get("type") == "text":
+                        text_val = cast(str, p.get("text", ""))
+                        total = total + (len(text_val) // 4 + 1)
+                    elif p.get("type") == "image_url":
+                        total = total + 500
+        return total
+
     def build_messages(
         self,
         history: list[dict[str, Any]],
@@ -126,37 +132,40 @@ When remembering something, write to {workspace_path}/memory/MEMORY.md"""
         media: list[str] | None = None,
         channel: str | None = None,
         chat_id: str | None = None,
+        max_history: int = 20,
+        max_tokens: int = 12000,
     ) -> list[dict[str, Any]]:
         """
-        Build the complete message list for an LLM call.
-
-        Args:
-            history: Previous conversation messages.
-            current_message: The new user message.
-            skill_names: Optional skills to include.
-            media: Optional list of local file paths for images/media.
-            channel: Current channel (telegram, feishu, etc.).
-            chat_id: Current chat/user ID.
-
-        Returns:
-            List of messages including system prompt.
+        Build the complete message list for an LLM call with sliding window.
         """
-        messages = []
-
-        # System prompt
-        system_prompt = self.build_system_prompt(skill_names)
+        # 1. System prompt
+        system_content = self.build_system_prompt(skill_names)
         if channel and chat_id:
-            system_prompt += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
-        messages.append({"role": "system", "content": system_prompt})
-
-        # History
-        messages.extend(history)
-
-        # Current message (with optional image attachments)
+            system_content += f"\n\n## Current Session\nChannel: {channel}\nChat ID: {chat_id}"
+        
+        system_msg: dict[str, Any] = {"role": "system", "content": system_content}
+        
+        # 2. Add current message
         user_content = self._build_user_content(current_message, media)
-        messages.append({"role": "user", "content": user_content})
+        user_msg: dict[str, Any] = {"role": "user", "content": user_content}
+        
+        # 3. Sliding Window Pruning
+        # Start with recent history up to max_history
+        work_history: list[dict[str, Any]] = history[-max_history:] if len(history) > max_history else list(history)
+        
+        # Iteratively remove oldest history if total tokens exceed limit
+        while work_history:
+            combined: list[dict[str, Any]] = [system_msg]
+            combined.extend(work_history)
+            combined.append(user_msg)
+            if self._estimate_tokens(combined) <= max_tokens:
+                break
+            work_history.pop(0)
 
-        return messages
+        result: list[dict[str, Any]] = [system_msg]
+        result.extend(work_history)
+        result.append(user_msg)
+        return result
 
     def _build_user_content(self, text: str, media: list[str] | None) -> str | list[dict[str, Any]]:
         """Build user message content with optional base64-encoded images."""

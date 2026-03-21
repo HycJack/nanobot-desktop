@@ -105,8 +105,8 @@ export default function ModelPanel({ toast, proc }: Props) {
       await loadConfig();
       const current = await invoke<Status>("get_status");
       proc.refreshStatus();
-      if (current.gateway) await proc.restartProc("gateway");
-      if (current.agent) await proc.restartProc("agent");
+      if (current.gateway === "Running") await proc.restartProc("gateway");
+      if (current.agent === "Running") await proc.restartProc("agent");
     } catch (err) {
       toast.error(`Save failed: ${err}`);
     } finally {

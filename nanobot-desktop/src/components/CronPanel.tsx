@@ -14,7 +14,7 @@ import {
 type Props = {
   toast: { success: (m: string) => void; error: (m: string) => void; warning: (m: string) => void };
   proc: {
-    status: { gateway: boolean };
+    status: { gateway: string | boolean };
     restartProc: (kind: "agent" | "gateway") => Promise<void>;
   };
 };
@@ -67,7 +67,7 @@ export default function CronPanel({ toast, proc }: Props) {
       if (!removed) { toast.warning("Job not found or already removed."); return; }
       toast.success("Cron job deleted");
       await loadCronJobs();
-      if (proc.status.gateway) await proc.restartProc("gateway");
+      if (proc.status.gateway === "Running") await proc.restartProc("gateway");
     } catch (err) {
       setError(String(err));
       toast.error(`Delete failed: ${err}`);
