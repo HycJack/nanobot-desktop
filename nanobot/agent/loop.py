@@ -185,6 +185,35 @@ class AgentLoop:
         )
         
         # Agent loop
+        final_content = await self._run_llm_loop(messages, session)
+        
+        # Log response preview
+        preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
+        logger.info(f"Response to {msg.channel}:{msg.sender_id}: {preview}")
+        
+        # Save to session (messages has been updated by _run_llm_loop if tool calls were made)
+        session.add_message("user", msg.content)
+        session.add_message("assistant", final_content)
+        self.sessions.save(session)
+        
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=final_content,
+            metadata=msg.metadata or {},  # Pass through for channel-specific needs (e.g. Slack thread_ts)
+        )
+
+    async def _run_llm_loop(self, messages: list[dict[str, Any]], session: Any) -> str:
+        """
+        Run the LLM chat loop, handling tool calls and context updates.
+        
+        Args:
+            messages: The initial prompt messages.
+            session: The session to update (optional).
+            
+        Returns:
+            The final assistant response content.
+        """
         iteration = 0
         final_content = None
         
@@ -230,24 +259,7 @@ class AgentLoop:
                 final_content = response.content
                 break
         
-        if final_content is None:
-            final_content = "I've completed processing but have no response to give."
-        
-        # Log response preview
-        preview = final_content[:120] + "..." if len(final_content) > 120 else final_content
-        logger.info(f"Response to {msg.channel}:{msg.sender_id}: {preview}")
-        
-        # Save to session
-        session.add_message("user", msg.content)
-        session.add_message("assistant", final_content)
-        self.sessions.save(session)
-        
-        return OutboundMessage(
-            channel=msg.channel,
-            chat_id=msg.chat_id,
-            content=final_content,
-            metadata=msg.metadata or {},  # Pass through for channel-specific needs (e.g. Slack thread_ts)
-        )
+        return final_content or "I've completed processing but have no response to give."
     
     async def _process_system_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
@@ -293,49 +305,8 @@ class AgentLoop:
             chat_id=origin_chat_id,
         )
         
-        # Agent loop (limited for announce handling)
-        iteration = 0
-        final_content = None
-        
-        while iteration < self.max_iterations:
-            iteration += 1
-            
-            response = await self.provider.chat(
-                messages=messages,
-                tools=self.tools.get_definitions(),
-                model=self.model
-            )
-            
-            if response.has_tool_calls:
-                tool_call_dicts = [
-                    {
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments)
-                        }
-                    }
-                    for tc in response.tool_calls
-                ]
-                messages = self.context.add_assistant_message(
-                    messages, response.content, tool_call_dicts,
-                    reasoning_content=response.reasoning_content,
-                )
-                
-                for tool_call in response.tool_calls:
-                    args_str = json.dumps(tool_call.arguments, ensure_ascii=False)
-                    logger.info(f"Tool call: {tool_call.name}({args_str[:200]})")
-                    result = await self.tools.execute(tool_call.name, tool_call.arguments)
-                    messages = self.context.add_tool_result(
-                        messages, tool_call.id, tool_call.name, result
-                    )
-            else:
-                final_content = response.content
-                break
-        
-        if final_content is None:
-            final_content = "Background task completed."
+        # Agent loop
+        final_content = await self._run_llm_loop(messages, session)
         
         # Save to session (mark as system message in history)
         session.add_message("user", f"[System: {msg.sender_id}] {msg.content}")
@@ -354,6 +325,7 @@ class AgentLoop:
         session_key: str = "cli:direct",
         channel: str = "cli",
         chat_id: str = "direct",
+        media: list[str] | None = None,
     ) -> str:
         """
         Process a message directly (for CLI or cron usage).
@@ -363,6 +335,7 @@ class AgentLoop:
             session_key: Session identifier.
             channel: Source channel (for context).
             chat_id: Source chat ID (for context).
+            media: Optional list of media file paths.
         
         Returns:
             The agent's response.
@@ -378,7 +351,8 @@ class AgentLoop:
             channel=channel,
             sender_id="user",
             chat_id=chat_id,
-            content=content
+            content=content,
+            media=media or []
         )
         
         response = await self._process_message(msg)

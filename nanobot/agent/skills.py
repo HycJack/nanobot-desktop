@@ -211,18 +211,21 @@ class SkillsLoader:
             Metadata dict or None.
         """
         content = self.load_skill(name)
-        if not content:
+        if not content or not content.startswith("---"):
             return None
         
-        if content.startswith("---"):
-            match = re.match(r"^---\n(.*?)\n---", content, re.DOTALL)
-            if match:
-                # Simple YAML parsing
-                metadata = {}
-                for line in match.group(1).split("\n"):
-                    if ":" in line:
-                        key, value = line.split(":", 1)
-                        metadata[key.strip()] = value.strip().strip('"\'')
-                return metadata
+        match = re.search(r"^---\s*\n(.*?)\n---\s*\n", content, re.DOTALL)
+        if not match:
+            return None
         
-        return None
+        # Simple YAML-like parsing for the frontmatter
+        metadata = {}
+        for line in match.group(1).split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                # Clean up key and value, removing quotes and whitespace
+                k = key.strip().lower()
+                v = value.strip().strip('"\'')
+                metadata[k] = v
+        
+        return metadata

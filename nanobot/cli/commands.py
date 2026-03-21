@@ -409,6 +409,7 @@ def agent(
     markdown: bool = typer.Option(True, "--markdown/--no-markdown", help="Render assistant output as Markdown"),
     logs: bool = typer.Option(False, "--logs/--no-logs", help="Show nanobot runtime logs during chat"),
     daemon: bool = typer.Option(False, "--daemon/--no-daemon", help="Run agent loop as a background service"),
+    media: list[str] = typer.Option(None, "--media", help="Media files to attach"),
 ):
     """Interact with the agent directly."""
     from nanobot.config.loader import load_config
@@ -487,7 +488,7 @@ def agent(
                         break
                     
                     with _thinking_ctx():
-                        response = await agent_loop.process_direct(user_input, session_id)
+                        response = await agent_loop.process_direct(user_input, session_id, media=media)
                     _print_agent_response(response, render_markdown=markdown)
                 except KeyboardInterrupt:
                     _restore_terminal()

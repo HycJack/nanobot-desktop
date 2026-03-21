@@ -1,5 +1,6 @@
 import React from "react";
 import { Attachment } from "../types";
+import { FileText, Image as ImageIcon, X } from "lucide-react";
 
 interface AttachmentBarProps {
   attachments: Attachment[];
@@ -17,7 +18,7 @@ export default function AttachmentBar({ attachments, onRemove }: AttachmentBarPr
             <img src={file.previewUrl} alt={file.name} className="attachment-preview" />
           ) : (
             <div className="attachment-icon">
-              {file.type.includes("pdf") ? "📄" : "📁"}
+              <FileText size={16} />
             </div>
           )}
           <span className="attachment-name">{file.name}</span>
@@ -26,7 +27,7 @@ export default function AttachmentBar({ attachments, onRemove }: AttachmentBarPr
             onClick={() => onRemove(file.id)}
             aria-label={`Remove ${file.name}`}
           >
-            ×
+            <X size={14} />
           </button>
         </div>
       ))}

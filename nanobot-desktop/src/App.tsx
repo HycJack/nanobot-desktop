@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Brain, Plus, RefreshCw, Type, Minus, Plus as PlusIcon } from "lucide-react";
+import { Brain, Plus, RefreshCw, Type, Minus, Plus as PlusIcon, XCircle, FilePlus, UploadCloud, FileText, Image as ImageIcon } from "lucide-react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 import type {
@@ -130,6 +130,9 @@ export default function App() {
   const chat = useChat(sessions);
   const proc = useProcesses();
 
+  const [isDragging, setIsDragging] = useState(false);
+  const dragCounter = useRef(0);
+
   const handleFileAttachment = useCallback((file: File) => {
     const path = (file as any).path || file.name;
     const isImage = file.type.startsWith("image/");
@@ -142,6 +145,42 @@ export default function App() {
     };
     chat.addAttachment(attachment);
   }, [chat]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current++;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.stopPropagation();
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    dragCounter.current = 0;
+
+    const files = e.dataTransfer?.files;
+    if (files) {
+      for (let i = 0; i < files.length; i++) {
+        handleFileAttachment(files[i]);
+      }
+    }
+  }, [handleFileAttachment]);
 
   /* Load models from config on mount */
   useEffect(() => {
@@ -273,18 +312,21 @@ export default function App() {
 
   return (
     <ErrorBoundary fallbackMessage="Nanobot Desktop encountered an error">
-      <div className="app-shell"
-           onDragOver={(e) => e.preventDefault()}
-           onDrop={(e) => {
-             e.preventDefault();
-             const files = e.dataTransfer?.files;
-             if (files) {
-               for (let i = 0; i < files.length; i++) {
-                 handleFileAttachment(files[i]);
-               }
-             }
-           }}
+      <div className={`app-shell ${isDragging ? 'dragging' : ''}`}
+         onDragEnter={handleDragEnter}
+         onDragOver={handleDragOver}
+         onDragLeave={handleDragLeave}
+         onDrop={handleDrop}
       >
+      {isDragging && (
+        <div className="window-drop-zone">
+          <div className="drop-zone-content">
+            <UploadCloud size={48} className="drop-icon" />
+            <h2>Drop files to attach</h2>
+            <p>Support for Images, PDFs, and more</p>
+          </div>
+        </div>
+      )}
         <Sidebar 
           tab={tab} 
           setTab={setTab} 
