@@ -24,6 +24,7 @@ async def async_retry(
     import httpx
     
     delay = 1.0
+    max_delay = 30.0  # Cap backoff to prevent unbounded growth
     for i in range(retries + 1):
         try:
             # Enforce per-attempt timeout to prevent hung connections
@@ -35,7 +36,7 @@ async def async_retry(
                 raise
             logger.warning(f"{name} timeout on attempt {i+1}/{retries}, retrying in {delay}s...")
             await asyncio.sleep(delay)
-            delay *= backoff
+            delay = min(delay * backoff, max_delay)
         except exceptions as e:
             # Categorize error
             should_retry = True
@@ -56,14 +57,13 @@ async def async_retry(
             
             logger.warning(f"{name} retry {i+1}/{retries} after {delay}s due to: {e}")
             await asyncio.sleep(delay)
-            delay *= backoff
+            delay = min(delay * backoff, max_delay)
     
     raise RuntimeError("Retry loop logic failed")
 
 
 def with_retry(retries: int = 3, backoff: float = 2.0, exceptions: tuple[Type[Exception], ...] = (Exception,), name: str | None = None):
     """Decorator version of async_retry."""
-    import functools
     def decorator(func: Callable[..., Coroutine[Any, Any, T]]):
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -111,7 +111,6 @@ class CircuitBreaker:
 
 def with_breaker(breaker: CircuitBreaker):
     """Decorator to wrap a function with a circuit breaker."""
-    import functools
     def decorator(func: Callable[..., Coroutine[Any, Any, T]]):
         @functools.wraps(func)
         async def wrapper(*args: Any, **kwargs: Any) -> Any:

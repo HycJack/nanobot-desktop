@@ -97,6 +97,8 @@ class MessageBus:
                         logger.error(f"Error dispatching to {msg.channel}: {e}")
             except asyncio.TimeoutError:
                 continue
+            except asyncio.CancelledError:
+                break
     
     def stop(self) -> None:
         """Stop the dispatcher loop."""

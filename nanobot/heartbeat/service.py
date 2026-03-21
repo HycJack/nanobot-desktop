@@ -58,6 +58,8 @@ class HeartbeatService:
         self.enabled = enabled
         self._running = False
         self._task: asyncio.Task | None = None
+        self._consecutive_errors = 0
+        self._MAX_CONSECUTIVE_ERRORS = 5
     
     @property
     def heartbeat_file(self) -> Path:
@@ -117,6 +119,7 @@ class HeartbeatService:
         if tick_func is not None:
             try:
                 response = await tick_func(HEARTBEAT_PROMPT)
+                self._consecutive_errors = 0  # Reset on success
                 
                 # Check if agent said "nothing to do"
                 if HEARTBEAT_OK_TOKEN.replace("_", "") in response.upper().replace("_", ""):
@@ -125,7 +128,11 @@ class HeartbeatService:
                     logger.info(f"Heartbeat: completed task")
                     
             except Exception as e:
-                logger.error(f"Heartbeat execution failed: {e}")
+                self._consecutive_errors += 1
+                logger.error(f"Heartbeat execution failed ({self._consecutive_errors}/{self._MAX_CONSECUTIVE_ERRORS}): {e}")
+                if self._consecutive_errors >= self._MAX_CONSECUTIVE_ERRORS:
+                    logger.warning("Heartbeat auto-disabled after too many consecutive errors")
+                    self._running = False
     
     async def trigger_now(self) -> str | None:
         """Manually trigger a heartbeat."""

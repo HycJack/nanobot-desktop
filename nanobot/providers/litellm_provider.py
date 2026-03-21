@@ -53,6 +53,56 @@ class LiteLLMProvider(LLMProvider):
         litellm.suppress_debug_info = True
         litellm.drop_params = True
 
+        # Connection keep-alive headers for persistent connections
+        if not self.extra_headers.get("Connection"):
+            self.extra_headers["Connection"] = "keep-alive"
+
+    def _setup_env(self, api_key: str, api_base: str | None, model: str) -> None:
+        """Set environment variables based on detected provider."""
+        spec = self._gateway or find_by_model(model)
+        if not spec:
+            return
+
+        # Gateway/local overrides existing env; standard provider doesn't
+        if self._gateway:
+            os.environ[spec.env_key] = api_key
+        else:
+            os.environ.setdefault(spec.env_key, api_key)
+
+        # Resolve env_extras placeholders
+        effective_base = api_base or spec.default_api_base
+        for env_name, env_val in spec.env_extras:
+            resolved = env_val.replace("{api_key}", api_key)
+            resolved = resolved.replace("{api_base}", effective_base)
+            os.environ.setdefault(env_name, resolved)
+
+    def _resolve_model(self, model: str) -> str:
+        """Resolve model name by applying provider/gateway prefixes."""
+        if self._gateway:
+            prefix = self._gateway.litellm_prefix
+            if self._gateway.strip_model_prefix:
+                model = model.split("/")[-1]
+            if prefix and not model.startswith(f"{prefix}/"):
+                model = f"{prefix}/{model}"
+            return model
+
+        spec = find_by_model(model)
+        if spec and spec.litellm_prefix:
+            if not any(model.startswith(s) for s in spec.skip_prefixes):
+                model = f"{spec.litellm_prefix}/{model}"
+
+        return model
+
+    def _apply_model_overrides(self, model: str, kwargs: dict[str, Any]) -> None:
+        """Apply model-specific parameter overrides from the registry."""
+        model_lower = model.lower()
+        spec = find_by_model(model)
+        if spec:
+            for pattern, overrides in spec.model_overrides:
+                if pattern in model_lower:
+                    kwargs.update(overrides)
+                    return
+
     @with_breaker(llm_breaker)
     async def _do_completion(self, kwargs: dict[str, Any]) -> Any:
         """Internal method to trigger completion with circuit breaker."""
@@ -97,6 +147,11 @@ class LiteLLMProvider(LLMProvider):
     
     def _parse_response(self, response: Any) -> LLMResponse:
         """Parse LiteLLM response into our standard format."""
+        if not response.choices:
+            return LLMResponse(
+                content="Empty response from LLM (no choices returned).",
+                finish_reason="error",
+            )
         choice = response.choices[0]
         message = choice.message
         

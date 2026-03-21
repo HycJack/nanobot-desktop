@@ -43,23 +43,30 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
   const [gatewayFilter, setGatewayFilter] = React.useState<string[]>(["INFO", "WARN", "ERROR"]);
   const [agentAutoScroll, setAgentAutoScroll] = React.useState(true);
   const [gatewayAutoScroll, setGatewayAutoScroll] = React.useState(true);
+  const [agentSearch, setAgentSearch] = React.useState("");
+  const [gatewaySearch, setGatewaySearch] = React.useState("");
 
-  const filterLogs = (logs: { stream: string; line: string }[], filter: string[]) => {
+  const filterLogs = (logs: { stream: string; line: string }[], filter: string[], search: string) => {
     const cleaned = logs.map(l => cleanLogLine(l.line));
+    const searchLower = search.toLowerCase();
     return cleaned.filter(line => {
-      if (filter.length === 0) return true;
-      return filter.some(f => line.includes(`| ${f} |`) || line.startsWith(`${f}:`) || line.includes(` ${f} `));
+      if (filter.length > 0) {
+        const matchesLevel = filter.some(f => line.includes(`| ${f} |`) || line.startsWith(`${f}:`) || line.includes(` ${f} `));
+        if (!matchesLevel) return false;
+      }
+      if (searchLower && !line.toLowerCase().includes(searchLower)) return false;
+      return true;
     }).slice(-500); 
   };
 
   const agentLogText = useMemo(
-    () => filterLogs(proc.logs.agent, agentFilter).join("\n"),
-    [proc.logs.agent, agentFilter],
+    () => filterLogs(proc.logs.agent, agentFilter, agentSearch).join("\n"),
+    [proc.logs.agent, agentFilter, agentSearch],
   );
 
   const gatewayLogText = useMemo(
-    () => filterLogs(proc.logs.gateway, gatewayFilter).join("\n"),
-    [proc.logs.gateway, gatewayFilter],
+    () => filterLogs(proc.logs.gateway, gatewayFilter, gatewaySearch).join("\n"),
+    [proc.logs.gateway, gatewayFilter, gatewaySearch],
   );
 
   // Auto-scroll logs
@@ -225,6 +232,7 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
                 </button>
               ))}
             </div>
+            <input className="skills-search-input" placeholder="Search..." value={agentSearch} onChange={e => setAgentSearch(e.target.value)} style={{ width: 110, marginLeft: 4 }} />
           </div>
           <div className="log-pane" ref={agentLogRef}>
             <pre>{agentLogText || "No logs yet (check filters)."}</pre>
@@ -249,8 +257,9 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
                 >
                   {lv}
                 </button>
-              ))}
+               ))}
             </div>
+            <input className="skills-search-input" placeholder="Search..." value={gatewaySearch} onChange={e => setGatewaySearch(e.target.value)} style={{ width: 110, marginLeft: 4 }} />
           </div>
           <div className="log-pane" ref={gatewayLogRef}>
             <pre>{gatewayLogText || "No logs yet (check filters)."}</pre>

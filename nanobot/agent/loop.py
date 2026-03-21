@@ -141,6 +141,20 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
     
+    def _set_tool_contexts(self, channel: str, chat_id: str) -> None:
+        """Update context-aware tools with the current channel/chat."""
+        message_tool = self.tools.get("message")
+        if isinstance(message_tool, MessageTool):
+            message_tool.set_context(channel, chat_id)
+
+        spawn_tool = self.tools.get("spawn")
+        if isinstance(spawn_tool, SpawnTool):
+            spawn_tool.set_context(channel, chat_id)
+
+        cron_tool = self.tools.get("cron")
+        if isinstance(cron_tool, CronTool):
+            cron_tool.set_context(channel, chat_id)
+    
     async def _process_message(self, msg: InboundMessage) -> OutboundMessage | None:
         """
         Process a single inbound message.
@@ -163,17 +177,7 @@ class AgentLoop:
         session = self.sessions.get_or_create(msg.session_key)
         
         # Update tool contexts
-        message_tool = self.tools.get("message")
-        if isinstance(message_tool, MessageTool):
-            message_tool.set_context(msg.channel, msg.chat_id)
-        
-        spawn_tool = self.tools.get("spawn")
-        if isinstance(spawn_tool, SpawnTool):
-            spawn_tool.set_context(msg.channel, msg.chat_id)
-        
-        cron_tool = self.tools.get("cron")
-        if isinstance(cron_tool, CronTool):
-            cron_tool.set_context(msg.channel, msg.chat_id)
+        self._set_tool_contexts(msg.channel, msg.chat_id)
         
         # Build initial messages (use get_history for LLM-formatted messages)
         messages = self.context.build_messages(
@@ -226,6 +230,10 @@ class AgentLoop:
                 tools=self.tools.get_definitions(),
                 model=self.model
             )
+            
+            # Early exit on error responses (e.g., circuit breaker tripped)
+            if response.finish_reason == "error":
+                return response.content or "LLM returned an error."
             
             # Handle tool calls
             if response.has_tool_calls:
@@ -285,17 +293,7 @@ class AgentLoop:
         session = self.sessions.get_or_create(session_key)
         
         # Update tool contexts
-        message_tool = self.tools.get("message")
-        if isinstance(message_tool, MessageTool):
-            message_tool.set_context(origin_channel, origin_chat_id)
-        
-        spawn_tool = self.tools.get("spawn")
-        if isinstance(spawn_tool, SpawnTool):
-            spawn_tool.set_context(origin_channel, origin_chat_id)
-        
-        cron_tool = self.tools.get("cron")
-        if isinstance(cron_tool, CronTool):
-            cron_tool.set_context(origin_channel, origin_chat_id)
+        self._set_tool_contexts(origin_channel, origin_chat_id)
         
         # Build messages with the announce content
         messages = self.context.build_messages(

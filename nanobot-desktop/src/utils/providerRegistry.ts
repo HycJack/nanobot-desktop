@@ -28,7 +28,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     icon: '🤖', 
     placeholder: 'sk-ant-api03-...', 
     showBaseUrl: true, 
-    defaultModel: 'claude-3-7-sonnet-latest', 
+    defaultModel: 'claude-sonnet-4-6', 
     category: 'official', 
     authModes: ['api_key'] 
   },
@@ -39,7 +39,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     placeholder: 'AIza...', 
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta', 
     showBaseUrl: true, 
-    defaultModel: 'gemini-2.5-pro', 
+    defaultModel: 'gemini-3-flash-preview', 
     category: 'official', 
     authModes: ['api_key', 'oauth_browser'] 
   },
@@ -50,7 +50,7 @@ export const PROVIDER_REGISTRY: ProviderMeta[] = [
     placeholder: 'sk-...', 
     defaultBaseUrl: 'https://api.minimax.io/v1', 
     showBaseUrl: true, 
-    defaultModel: 'abab6.5s-chat', 
+    defaultModel: 'MiniMax-M2.7', 
     category: 'official', 
     authModes: ['api_key', 'oauth_device'] 
   },

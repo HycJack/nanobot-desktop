@@ -68,6 +68,11 @@ class SubagentManager:
         task_id = str(uuid.uuid4())[:8]
         display_label = label or task[:30] + ("..." if len(task) > 30 else "")
         
+        # Guard: max concurrent subagents
+        MAX_CONCURRENT = 5
+        if len(self._running_tasks) >= MAX_CONCURRENT:
+            return f"Error: Maximum of {MAX_CONCURRENT} concurrent subagents reached. Wait for existing tasks to complete."
+        
         origin = {
             "channel": origin_channel,
             "chat_id": origin_chat_id,
@@ -144,7 +149,7 @@ class SubagentManager:
             # Run agent loop (limited iterations)
             max_iterations = 20  # Increased from 15
             iteration = 0
-            final_result: str | None = None
+            final_content: str | None = None
             
             while iteration < max_iterations:
                 iteration += 1
@@ -162,6 +167,11 @@ class SubagentManager:
                     tools=tools.get_definitions(),
                     model=self.model,
                 )
+                
+                # Early exit on error responses (e.g., circuit breaker tripped)
+                if response.finish_reason == "error":
+                    final_content = response.content or "LLM returned an error."
+                    break
                 
                 if response.has_tool_calls:
                     # Add assistant message with tool calls
@@ -208,8 +218,7 @@ class SubagentManager:
                     final_content = response.content
                     break
             
-            if final_result is None:
-                final_result = final_content or "Task completed but no final response was generated."
+            final_result = final_content or "Task completed but no final response was generated."
             
             logger.info(f"Subagent [{task_id}] completed successfully")
             
@@ -282,32 +291,20 @@ Summarize this naturally for the user. Keep it brief (1-2 sentences). Do not men
         """Build a focused system prompt for the subagent."""
         return f"""# Subagent
  
-You are a subagent spawned by the main agent to complete a specific task.
- 
-## Your Task
-{task}
+You are a subagent spawned to complete a specific task.
  
 ## Rules
-1. Stay focused - complete only the assigned task, nothing else
+1. Stay focused - complete only the assigned task
 2. Your final response will be reported back to the main agent
-3. Do not initiate conversations or take on side tasks
-4. Be concise but informative in your findings
+3. Be concise but informative in your findings
  
-## What You Can Do
-- Read and write files in the workspace
-- Execute shell commands
-- Search the web and fetch web pages
-- Spawn other subagents (if the task requires further decomposition)
-- Complete the task thoroughly
- 
-## What You Cannot Do
-- Send messages directly to users (no message tool available)
-- Access the main agent's conversation history
+## Capabilities
+Files (read/write/list), Shell, Web search/fetch, Spawn sub-subagents
  
 ## Workspace
-Your workspace is at: {self.workspace}
+{self.workspace}
  
-When you have completed the task, provide a clear summary of your findings or actions."""
+Provide a clear summary when done."""
     
     def get_running_count(self) -> int:
         """Return the number of currently running subagents."""

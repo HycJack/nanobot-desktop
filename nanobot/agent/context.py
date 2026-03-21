@@ -102,8 +102,12 @@ Workspace: {workspace_path}
         for filename in self.BOOTSTRAP_FILES:
             file_path = self.workspace / filename
             if file_path.exists():
-                content = file_path.read_text(encoding="utf-8")
-                parts.append(f"## {filename}\n\n{content}")
+                try:
+                    content = file_path.read_text(encoding="utf-8")
+                    parts.append(f"## {filename}\n\n{content}")
+                except (UnicodeDecodeError, IOError):
+                    # Skip corrupted or unreadable bootstrap files
+                    continue
         
         return "\n\n".join(parts) if parts else ""
     
@@ -122,6 +126,12 @@ Workspace: {workspace_path}
                         total = total + (len(text_val) // 4 + 1)
                     elif p.get("type") == "image_url":
                         total = total + 500
+            # Count tool_calls arguments too
+            tool_calls = msg.get("tool_calls", [])
+            for tc in tool_calls:
+                args_str = tc.get("function", {}).get("arguments", "")
+                if isinstance(args_str, str):
+                    total = total + (len(args_str) // 4 + 1)
         return total
 
     def build_messages(
@@ -172,13 +182,17 @@ Workspace: {workspace_path}
         if not media:
             return text
         
+        MAX_IMAGES = 5  # Prevent context overflow from too many images
         images = []
-        for path in media:
+        for path in media[:MAX_IMAGES]:
             p = Path(path)
             mime, _ = mimetypes.guess_type(path)
             if not p.is_file() or not mime or not mime.startswith("image/"):
                 continue
-            b64 = base64.b64encode(p.read_bytes()).decode()
+            try:
+                b64 = base64.b64encode(p.read_bytes()).decode()
+            except (IOError, OSError):
+                continue
             images.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
         
         if not images:

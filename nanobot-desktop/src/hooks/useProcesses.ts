@@ -13,16 +13,25 @@ export function useProcesses() {
   const [logs, setLogs] = useState<LogState>({ agent: [], gateway: [] });
   const [configMissing, setConfigMissing] = useState(false);
   const [configMissingPath, setConfigMissingPath] = useState("");
+  const [isBackendReachable, setIsBackendReachable] = useState(true);
 
   const pendingLogsRef = useRef<LogState>({ agent: [], gateway: [] });
   const logFlushTimerRef = useRef<number | null>(null);
   const monitorActiveRef = useRef(false);
+  const statusFailCountRef = useRef(0);
 
   const refreshStatus = useCallback(async () => {
     try {
       const next = await invoke<Status>("get_status");
       setStatus(next);
+      statusFailCountRef.current = 0;
+      setIsBackendReachable(true);
     } catch (err) {
+      statusFailCountRef.current += 1;
+      // Mark unreachable after 3 consecutive failures
+      if (statusFailCountRef.current >= 3) {
+        setIsBackendReachable(false);
+      }
       console.warn("refreshStatus failed", err);
     }
   }, []);
@@ -214,6 +223,7 @@ export function useProcesses() {
     status, procBusy, logs,
     configMissing, setConfigMissing,
     configMissingPath, setConfigMissingPath,
+    isBackendReachable,
     refreshStatus,
     startProc, stopProc, restartProc, toggleProc, startAllProcs,
     setMonitorActive,
