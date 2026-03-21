@@ -75,17 +75,12 @@ export default memo(function Sidebar({ tab, setTab, status, currentSession }: Pr
           <span className="session-label">{t("status.session")}</span>
           <span className="session" title={currentSession}>{currentSession}</span>
         </div>
-        <div className="status-row session-row" style={{ marginTop: "4px" }}>
+        <div className="status-row session-row" style={{ marginTop: "8px" }}>
           <button 
+            className={`settings-btn ${tab === "settings" ? "active" : ""}`}
             onClick={() => setTab("settings")}
-            style={{ 
-              width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "10px", 
-              background: tab === "settings" ? "var(--border)" : "transparent", 
-              border: "none", cursor: "pointer", display: "flex", alignItems: "center", 
-              gap: "8px", fontWeight: 600, color: "var(--text)", transition: "0.2s"
-            }}
           >
-            <span style={{ fontSize: "16px" }}>⚙️</span> {t("nav.settings")}
+            <span className="settings-icon">⚙️</span> {t("nav.settings")}
           </button>
         </div>
       </div>
