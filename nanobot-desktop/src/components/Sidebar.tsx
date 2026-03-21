@@ -2,8 +2,9 @@
  * Sidebar navigation component.
  * Displays brand, tab navigation buttons, and status footer.
  */
-import React, { memo, useCallback } from "react";
+import React, { memo } from "react";
 import type { TabKey, Status } from "../types";
+import { useSettings } from "../hooks/useSettings";
 
 type Props = {
   tab: TabKey;
@@ -23,6 +24,8 @@ const NAV_ITEMS: { key: TabKey; label: string }[] = [
 ];
 
 export default memo(function Sidebar({ tab, setTab, status, currentSession }: Props) {
+  const { t } = useSettings();
+
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -37,40 +40,53 @@ export default memo(function Sidebar({ tab, setTab, status, currentSession }: Pr
             role="tab"
             aria-selected={tab === item.key}
             aria-controls={`panel-${item.key}`}
-            title={item.label}
+            title={t(`nav.${item.key}` as any)}
           >
-            {item.label}
+            {t(`nav.${item.key}` as any)}
           </button>
         ))}
       </nav>
       <div className="sidebar-footer">
         <div className="status-row">
           <span className="status-text">
-            Agent:
+            {t("status.agent")}
             <span
               className={`breath-dot agent ${status.agent ? "on" : "off"}`}
               title={`Agent ${status.agent ? "running" : "stopped"}`}
             />
             <span className="status-text-label">
-              {status.agent ? "running" : "stopped"}
+              {status.agent ? t("status.running") : t("status.stopped")}
             </span>
           </span>
         </div>
         <div className="status-row">
           <span className="status-text">
-            Gateway:
+            {t("status.gateway")}
             <span
               className={`breath-dot gateway ${status.gateway ? "on" : "off"}`}
               title={`Gateway ${status.gateway ? "running" : "stopped"}`}
             />
             <span className="status-text-label">
-              {status.gateway ? "running" : "stopped"}
+              {status.gateway ? t("status.running") : t("status.stopped")}
             </span>
           </span>
         </div>
         <div className="status-row session-row">
-          <span className="session-label">Session</span>
+          <span className="session-label">{t("status.session")}</span>
           <span className="session" title={currentSession}>{currentSession}</span>
+        </div>
+        <div className="status-row session-row" style={{ marginTop: "4px" }}>
+          <button 
+            onClick={() => setTab("settings")}
+            style={{ 
+              width: "100%", textAlign: "left", padding: "8px 10px", borderRadius: "10px", 
+              background: tab === "settings" ? "var(--border)" : "transparent", 
+              border: "none", cursor: "pointer", display: "flex", alignItems: "center", 
+              gap: "8px", fontWeight: 600, color: "var(--text)", transition: "0.2s"
+            }}
+          >
+            <span style={{ fontSize: "16px" }}>⚙️</span> {t("nav.settings")}
+          </button>
         </div>
       </div>
     </aside>

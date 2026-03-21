@@ -14,6 +14,7 @@ import ToastContainer from "./components/ToastContainer";
 import { useChat } from "./hooks/useChat";
 import { useProcesses } from "./hooks/useProcesses";
 import { useToast } from "./hooks/useToast";
+import { useSettings } from "./hooks/useSettings";
 
 /* -- Lazy-loaded panel components (code-split per tab) -- */
 const MonitorPanel = lazy(() => import("./components/MonitorPanel"));
@@ -22,6 +23,7 @@ const SkillsPanel = lazy(() => import("./components/SkillsPanel"));
 const SessionsPanel = lazy(() => import("./components/SessionsPanel"));
 const MemoryPanel = lazy(() => import("./components/MemoryPanel"));
 const ModelPanel = lazy(() => import("./components/ModelPanel"));
+const SettingsPanel = lazy(() => import("./components/SettingsPanel"));
 
 /* -- Constant style objects to avoid re-creation on every render -- */
 const STYLE_NO_DRAG = { WebkitAppRegion: "no-drag" } as React.CSSProperties;
@@ -119,6 +121,7 @@ export default function App() {
   const modelDropdownRef = useRef<HTMLDivElement | null>(null);
   const [tab, setTab] = useState<TabKey>("chat");
   const toast = useToast();
+  const { t } = useSettings();
 
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -240,13 +243,9 @@ export default function App() {
 
   /* Tab header title */
   const tabTitle = useMemo(() => {
-    const map: Record<TabKey, string> = {
-      chat: "", monitor: "Monitor", cron: "Cron",
-      sessions: "Sessions", skills: "Skills",
-      memory: "Memory", models: "Models",
-    };
-    return map[tab];
-  }, [tab]);
+    if (tab === "chat") return "";
+    return t(`nav.${tab}` as any);
+  }, [tab, t]);
 
   /* Model dropdown toggle */
   const toggleModelDropdown = useCallback(() => setShowModelDropdown((p) => !p), []);
@@ -390,8 +389,10 @@ export default function App() {
                 <SkillsPanel toast={toast} />
               ) : tab === "memory" ? (
                 <MemoryPanel toast={toast} />
-              ) : (
+              ) : tab === "models" ? (
                 <ModelPanel toast={toast} proc={proc} />
+              ) : (
+                <SettingsPanel />
               )}
             </Suspense>
           </ErrorBoundary>

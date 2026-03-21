@@ -10,7 +10,38 @@
   --border: #e5e0d8;
   --shadow: 0 10px 30px rgba(18, 20, 25, 0.08);
   --radius: 16px;
+  
+  /* Chat bubbles */
+  --bubble-bot-bg: #ffffff;
+  --bubble-user-bg: #e9f2ff;
+  --bubble-user-border: #cfe3ff;
+  --header-bg-gradient: linear-gradient(135deg, #f8f4ee 0%, #f2ece3 100%);
+  --body-bg-gradient: radial-gradient(1200px 800px at 10% 10%, #f8f5f0 0%, #efe8dd 45%, #e6dfd4 100%);
+  --nav-active-bg: #eaf2fb;
+  --action-btn-bg: #f1efe9;
+  
   font-family: "Bahnschrift", "Segoe UI", sans-serif;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --bg: #1e1e20;
+  --panel: #2a2a2d;
+  --panel-2: #3f3f46;
+  --accent: #60a5fa;
+  --accent-2: #93c5fd;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --border: #52525b;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  
+  --bubble-bot-bg: #3f3f46;
+  --bubble-user-bg: #1e3a8a;
+  --bubble-user-border: #1e3a8a;
+  --header-bg-gradient: linear-gradient(135deg, #2a2a2d 0%, #1e1e20 100%);
+  --body-bg-gradient: radial-gradient(1200px 800px at 10% 10%, #2a2a2d 0%, #1e1e20 45%, #18181b 100%);
+  --nav-active-bg: #1e3a8a;
+  --action-btn-bg: #3f3f46;
 }
 
 html,
@@ -25,7 +56,7 @@ body,
 
 body {
   margin: 0;
-  background: radial-gradient(1200px 800px at 10% 10%, #f8f5f0 0%, #efe8dd 45%, #e6dfd4 100%);
+  background: var(--body-bg-gradient);
   color: var(--text);
   overflow: hidden;
 }
@@ -80,7 +111,7 @@ body {
 
 .modal-actions button {
   border: 1px solid var(--border);
-  background: #f1efe9;
+  background: var(--action-btn-bg);
   color: var(--text);
   padding: 10px 14px;
   border-radius: 12px;
@@ -170,7 +201,7 @@ body {
 
 .nav button.active {
   border-color: var(--accent);
-  background: #eaf2fb;
+  background: var(--nav-active-bg);
   color: var(--accent-2);
 }
 
@@ -273,7 +304,7 @@ body {
   justify-content: space-between;
   padding: 16px 20px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(135deg, #f8f4ee 0%, #f2ece3 100%);
+  background: var(--header-bg-gradient);
 }
 
 .header h1 {
@@ -338,13 +369,13 @@ body {
 
 .bubble.user {
   margin-left: auto;
-  background: #e9f2ff;
-  border-color: #cfe3ff;
+  background: var(--bubble-user-bg);
+  border-color: var(--bubble-user-border);
 }
 
 .bubble.bot {
   margin-right: auto;
-  background: #ffffff;
+  background: var(--bubble-bot-bg);
 }
 
 .bubble .role {
@@ -442,7 +473,7 @@ body {
 
 .bubble code {
   font-family: "Cascadia Code", "Consolas", monospace;
-  background: #f2f4f7;
+  background: var(--panel-2);
   padding: 2px 4px;
   border-radius: 6px;
 }
@@ -467,7 +498,7 @@ body {
 }
 
 .bubble th {
-  background: #f1ebe3;
+  background: var(--panel-2);
 }
 
 .input-row {
