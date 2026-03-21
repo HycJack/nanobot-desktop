@@ -71,10 +71,6 @@ export default memo(function Sidebar({ tab, setTab, status, currentSession }: Pr
             </span>
           </span>
         </div>
-        <div className="status-row session-row">
-          <span className="session-label">{t("status.session")}</span>
-          <span className="session" title={currentSession}>{currentSession}</span>
-        </div>
         <div className="status-row session-row" style={{ marginTop: "8px" }}>
           <button 
             className={`settings-btn ${tab === "settings" ? "active" : ""}`}
