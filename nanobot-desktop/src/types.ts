@@ -4,12 +4,21 @@
 
 export type TabKey = "chat" | "monitor" | "cron" | "sessions" | "skills" | "memory" | "models" | "settings";
 
+export type Attachment = {
+  id: string;
+  path: string;
+  name: string;
+  type: string;
+  previewUrl?: string;
+};
+
 export type Message = {
   id: string;
   role: "user" | "bot" | "system";
   content: string;
   createdAt: string;
   line?: number;
+  attachments?: Attachment[];
 };
 
 export type LogEvent = {

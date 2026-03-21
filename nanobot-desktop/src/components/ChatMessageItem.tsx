@@ -39,32 +39,52 @@ const ChatMessageItem = memo(({ msg, chatFontSize, isCollapsed, toggleCollapse }
         <div className="bubble-body" style={{ fontSize: `${chatFontSize}px` }}>
           {isCollapsed ? (
             <div className="collapsed-indicator">*(Content Collapsed)*</div>
-          ) : parsed ? (
-            <>
-              {parsed.main ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.main}</ReactMarkdown>
-              ) : null}
-              {parsed.tools ? (
-                <details className="debug-details">
-                  <summary>调用工具（{parsed.toolCount}）</summary>
-                  <pre>{cleanLogBlock(parsed.tools)}</pre>
-                </details>
-              ) : null}
-              {parsed.subagents ? (
-                <details className="debug-details">
-                  <summary>子代理（{parsed.subagentCount}）</summary>
-                  <pre>{cleanLogBlock(parsed.subagents)}</pre>
-                </details>
-              ) : null}
-              {parsed.debug ? (
-                <details className="debug-details">
-                  <summary>调试日志（{parsed.debugCount}）</summary>
-                  <pre>{cleanLogBlock(parsed.debug)}</pre>
-                </details>
-              ) : null}
-            </>
           ) : (
-            <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
+            <>
+              {msg.attachments && msg.attachments.length > 0 && (
+                <div className="message-attachments">
+                  {msg.attachments.map((at) => (
+                    <div key={at.id} className="message-attachment-item">
+                      {at.previewUrl ? (
+                        <img src={at.previewUrl} alt={at.name} className="message-attachment-img" />
+                      ) : (
+                        <div className="message-attachment-file">
+                          <span className="file-icon">{at.type.includes("pdf") ? "📄" : "📁"}</span>
+                          <span className="file-name">{at.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {parsed ? (
+                <>
+                  {parsed.main ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.main}</ReactMarkdown>
+                  ) : null}
+                  {parsed.tools ? (
+                    <details className="debug-details">
+                      <summary>调用工具（{parsed.toolCount}）</summary>
+                      <pre>{cleanLogBlock(parsed.tools)}</pre>
+                    </details>
+                  ) : null}
+                  {parsed.subagents ? (
+                    <details className="debug-details">
+                      <summary>子代理（{parsed.subagentCount}）</summary>
+                      <pre>{cleanLogBlock(parsed.subagents)}</pre>
+                    </details>
+                  ) : null}
+                  {parsed.debug ? (
+                    <details className="debug-details">
+                      <summary>调试日志（{parsed.debugCount}）</summary>
+                      <pre>{cleanLogBlock(parsed.debug)}</pre>
+                    </details>
+                  ) : null}
+                </>
+              ) : (
+                <div style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{msg.content}</div>
+              )}
+            </>
           )}
         </div>
       </div>

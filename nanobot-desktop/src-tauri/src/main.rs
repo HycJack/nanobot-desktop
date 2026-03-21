@@ -1244,6 +1244,7 @@ async fn send_agent_message(
     message: String,
     session_id: String,
     model: Option<String>,
+    media: Option<Vec<String>>,
 ) -> Result<String, String> {
     emit_log(
         &app,
@@ -1266,6 +1267,12 @@ async fn send_agent_message(
         if let Some(m) = model {
             cli_args.push("--model".to_string());
             cli_args.push(m);
+        }
+        if let Some(md) = media {
+            for m in md {
+                cli_args.push("--media".to_string());
+                cli_args.push(m);
+            }
         }
         cmd.args(cli_args)
         .stdout(Stdio::piped())

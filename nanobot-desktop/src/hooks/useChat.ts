@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import type { Message, SessionMessagePayload, SessionInfo } from "../types";
+import type { Message, SessionMessagePayload, SessionInfo, Attachment } from "../types";
 import { now, HISTORY_BATCH } from "../utils/helpers";
 
 const DEFAULT_MODELS = [
@@ -16,6 +16,7 @@ export function useChat(sessions: SessionInfo[]) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [currentSession, setCurrentSession] = useState("cli_direct");
   const [chatFontSize, setChatFontSize] = useState<number>(() => {
     const saved = localStorage.getItem("nanobot-chat-font-size");
@@ -34,10 +35,10 @@ export function useChat(sessions: SessionInfo[]) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Stable refs for event handlers to avoid recreation on keystrokes
-  const stateRef = useRef({ input, currentSession, selectedModel });
+  const stateRef = useRef({ input, currentSession, selectedModel, attachments });
   useEffect(() => {
-    stateRef.current = { input, currentSession, selectedModel };
-  }, [input, currentSession, selectedModel]);
+    stateRef.current = { input, currentSession, selectedModel, attachments };
+  }, [input, currentSession, selectedModel, attachments]);
 
   // Persist font size
   useEffect(() => {
@@ -137,17 +138,28 @@ export function useChat(sessions: SessionInfo[]) {
     }
   };
 
+  const addAttachment = useCallback((attachment: Attachment) => {
+    setAttachments((prev) => [...prev, attachment]);
+  }, []);
+
+  const removeAttachment = useCallback((id: string) => {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
   const sendMessage = useCallback(async () => {
-    const { input: currentInput, currentSession: sess, selectedModel: mod } = stateRef.current;
+    const { input: currentInput, currentSession: sess, selectedModel: mod, attachments: currentAttachments } = stateRef.current;
     const text = currentInput.trim();
-    if (!text || sending) return;
+    if (!text && currentAttachments.length === 0 || sending) return;
     
     setInput("");
+    setAttachments([]);
+
     const userMsg: Message = {
       id: `${Date.now()}-user`,
       role: "user",
       content: text,
-      createdAt: now()
+      createdAt: now(),
+      attachments: currentAttachments.length > 0 ? [...currentAttachments] : undefined,
     };
     autoScrollRef.current = true;
     setMessages((prev) => [...prev, userMsg]);
@@ -157,7 +169,8 @@ export function useChat(sessions: SessionInfo[]) {
       const response = await invoke<string>("send_agent_message", {
         message: text,
         sessionId: sess,
-        model: mod === "System Default" || !mod.trim() ? null : mod.trim()
+        model: mod === "System Default" || !mod.trim() ? null : mod.trim(),
+        media: currentAttachments.length > 0 ? currentAttachments.map((a: Attachment) => a.path) : null,
       });
       const botMsg: Message = {
         id: `${Date.now()}-bot`,
@@ -197,32 +210,29 @@ export function useChat(sessions: SessionInfo[]) {
   }, []);
 
   const handleInputChange = useCallback(async (newText: string) => {
-    if (newText.endsWith(" !")) {
-      const selected = await open({ directory: true });
-      if (selected && typeof selected === "string") {
-        setLastSelectedFolder(selected);
-        setInput(newText.slice(0, -2) + " " + selected + " ");
-      } else {
-        setInput(newText.slice(0, -1)); // revert the "!" just in case they cancelled, or leave it? Let's leave it as " !" but avoid re-triggering. Wait, if we just remove the "!", they can type again if they want.
-        setInput(newText.slice(0, -2) + " "); 
-      }
+    const match = newText.match(/(^|\s)([!@])$/);
+    if (!match) {
+      setInput(newText);
       return;
     }
     
-    if (newText.endsWith(" @")) {
-      const selected = await open({ 
-        directory: false, 
-        defaultPath: lastSelectedFolder ?? undefined 
-      });
-      if (selected && typeof selected === "string") {
-        setInput(newText.slice(0, -2) + " " + selected + " ");
-      } else {
-        setInput(newText.slice(0, -2) + " ");
-      }
-      return;
+    const trigger = match[2];
+    const isDir = trigger === "!";
+    
+    const selected = await open({
+      directory: isDir,
+      defaultPath: isDir ? undefined : (lastSelectedFolder ?? undefined)
+    });
+    
+    if (selected && typeof selected === "string") {
+      if (isDir) setLastSelectedFolder(selected);
+      // Replace the trigger character with the selected path
+      setInput(newText.slice(0, -1) + selected + " ");
+    } else {
+      // If cancelled, just apply the text so they can keep typing, 
+      // but without the trigger so it doesn't re-open immediately
+      setInput(newText.slice(0, -1));
     }
-
-    setInput(newText);
   }, [lastSelectedFolder]);
 
   return {
@@ -236,7 +246,8 @@ export function useChat(sessions: SessionInfo[]) {
     chatListRef, autoScrollRef, textareaRef,
     modelList,
     handleNewChat, handleRefreshChat,
-    loadHistoryChunk, handleHistoryScroll,
+    loadHistoryChunk,    handleHistoryScroll,
     sendMessage, handleInputKeyDown,
+    attachments, addAttachment, removeAttachment,
   };
 }

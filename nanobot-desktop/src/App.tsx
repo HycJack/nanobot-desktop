@@ -1,9 +1,9 @@
 import React, { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 
 import type {
   TabKey, Message, Status,
-  ConfigFilePayload, SessionInfo
+  ConfigFilePayload, SessionInfo, Attachment
 } from "./types";
 import { now, MAX_INPUT_LINES } from "./utils/helpers";
 
@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import Sidebar from "./components/Sidebar";
 import ChatMessageItem from "./components/ChatMessageItem";
 import ToastContainer from "./components/ToastContainer";
+import AttachmentBar from "./components/AttachmentBar";
 import { useChat } from "./hooks/useChat";
 import { useProcesses } from "./hooks/useProcesses";
 import { useToast } from "./hooks/useToast";
@@ -127,6 +128,19 @@ export default function App() {
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const chat = useChat(sessions);
   const proc = useProcesses();
+
+  const handleFileAttachment = useCallback((file: File) => {
+    const path = (file as any).path || file.name;
+    const isImage = file.type.startsWith("image/");
+    const attachment: Attachment = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      path,
+      name: file.name,
+      type: file.type,
+      previewUrl: isImage ? convertFileSrc(path) : undefined
+    };
+    chat.addAttachment(attachment);
+  }, [chat]);
 
   /* Load models from config on mount */
   useEffect(() => {
@@ -258,7 +272,18 @@ export default function App() {
 
   return (
     <ErrorBoundary fallbackMessage="Nanobot Desktop encountered an error">
-      <div className="app-shell">
+      <div className="app-shell"
+           onDragOver={(e) => e.preventDefault()}
+           onDrop={(e) => {
+             e.preventDefault();
+             const files = e.dataTransfer?.files;
+             if (files) {
+               for (let i = 0; i < files.length; i++) {
+                 handleFileAttachment(files[i]);
+               }
+             }
+           }}
+      >
         <Sidebar tab={tab} setTab={setTab} status={proc.status} currentSession={chat.currentSession} />
 
         <main className="main">
@@ -354,13 +379,31 @@ export default function App() {
                       </div>
                     )}
                   </div>
-                  <div className="input-row">
-                    <textarea
-                      ref={chat.textareaRef}
+                  <div className="input-row-container">
+                    <AttachmentBar
+                      attachments={chat.attachments}
+                      onRemove={chat.removeAttachment}
+                    />
+                    <div className="input-row">
+                      <textarea
+                        ref={chat.textareaRef}
                       rows={1}
                       value={chat.input}
                       onChange={(e) => chat.setInput(e.target.value)}
                       onKeyDown={chat.handleInputKeyDown}
+                      onPaste={(e) => {
+                        const items = e.clipboardData?.items;
+                        if (!items) return;
+                        for (let i = 0; i < items.length; i++) {
+                          if (items[i].kind === "file") {
+                            const f = items[i].getAsFile();
+                            if (f) {
+                              e.preventDefault();
+                              handleFileAttachment(f);
+                            }
+                          }
+                        }
+                      }}
                       placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
                       aria-label="Chat message input"
                     />
@@ -372,6 +415,7 @@ export default function App() {
                     >
                       {chat.sending ? "…" : "↑"}
                     </button>
+                    </div>
                   </div>
                 </div>
               ) : tab === "monitor" ? (
