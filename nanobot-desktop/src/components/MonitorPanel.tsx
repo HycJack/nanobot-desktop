@@ -46,28 +46,31 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
   const [agentSearch, setAgentSearch] = React.useState("");
   const [gatewaySearch, setGatewaySearch] = React.useState("");
 
-  const filterLogs = (logs: { stream: string; line: string }[], filter: string[], search: string) => {
-    const cleaned = logs.map(l => cleanLogLine(l.line));
-    const searchLower = search.toLowerCase();
+  const agentLogText = useMemo(() => {
+    const cleaned = proc.logs.agent.map(l => cleanLogLine(l.line));
+    const searchLower = agentSearch.toLowerCase();
     return cleaned.filter(line => {
-      if (filter.length > 0) {
-        const matchesLevel = filter.some(f => line.includes(`| ${f} |`) || line.startsWith(`${f}:`) || line.includes(` ${f} `));
+      if (agentFilter.length > 0) {
+        const matchesLevel = agentFilter.some(f => line.includes(`| ${f} |`) || line.startsWith(`${f}:`) || line.includes(` ${f} `));
         if (!matchesLevel) return false;
       }
       if (searchLower && !line.toLowerCase().includes(searchLower)) return false;
       return true;
-    }).slice(-500); 
-  };
+    }).slice(-500).join("\n");
+  }, [proc.logs.agent, agentFilter, agentSearch]);
 
-  const agentLogText = useMemo(
-    () => filterLogs(proc.logs.agent, agentFilter, agentSearch).join("\n"),
-    [proc.logs.agent, agentFilter, agentSearch],
-  );
-
-  const gatewayLogText = useMemo(
-    () => filterLogs(proc.logs.gateway, gatewayFilter, gatewaySearch).join("\n"),
-    [proc.logs.gateway, gatewayFilter, gatewaySearch],
-  );
+  const gatewayLogText = useMemo(() => {
+    const cleaned = proc.logs.gateway.map(l => cleanLogLine(l.line));
+    const searchLower = gatewaySearch.toLowerCase();
+    return cleaned.filter(line => {
+      if (gatewayFilter.length > 0) {
+        const matchesLevel = gatewayFilter.some(f => line.includes(`| ${f} |`) || line.startsWith(`${f}:`) || line.includes(` ${f} `));
+        if (!matchesLevel) return false;
+      }
+      if (searchLower && !line.toLowerCase().includes(searchLower)) return false;
+      return true;
+    }).slice(-500).join("\n");
+  }, [proc.logs.gateway, gatewayFilter, gatewaySearch]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -234,7 +237,11 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
             </div>
             <input className="skills-search-input" placeholder="Search..." value={agentSearch} onChange={e => setAgentSearch(e.target.value)} style={{ width: 110, marginLeft: 4 }} />
           </div>
-          <div className="log-pane" ref={agentLogRef}>
+          <div
+            className="log-pane"
+            ref={agentLogRef}
+            style={{ contain: "strict", willChange: "scroll-position" }}
+          >
             <pre>{agentLogText || "No logs yet (check filters)."}</pre>
           </div>
         </div>
@@ -261,7 +268,11 @@ export default function MonitorPanel({ proc, subagentStatuses, onCancelSubagent,
             </div>
             <input className="skills-search-input" placeholder="Search..." value={gatewaySearch} onChange={e => setGatewaySearch(e.target.value)} style={{ width: 110, marginLeft: 4 }} />
           </div>
-          <div className="log-pane" ref={gatewayLogRef}>
+          <div
+            className="log-pane"
+            ref={gatewayLogRef}
+            style={{ contain: "strict", willChange: "scroll-position" }}
+          >
             <pre>{gatewayLogText || "No logs yet (check filters)."}</pre>
           </div>
         </div>

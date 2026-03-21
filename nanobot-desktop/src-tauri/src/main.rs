@@ -1460,7 +1460,7 @@ async fn send_agent_message(
             "chat".to_string(),
             "--message".to_string(),
             message,
-            "--session-id".to_string(),
+            "--session".to_string(),
             session_id,
         ];
         if let Some(m) = model {
